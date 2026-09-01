@@ -1,0 +1,14 @@
+# --- Voice Input ---
+SpeechRecognition==3.10.0
+pyaudio
+faster-whisper
+numpy
+
+# --- Voice Output ---
+pyttsx3
+edge-tts
+
+# --- Action ---
+AppOpener
+PyGetWindow
+PyAutoGUI

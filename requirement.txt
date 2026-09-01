@@ -1,14 +1,13 @@
-# --- Voice Input ---
+# --- Voice Input (only used when use_voice_mode is True in config.json) ---
 SpeechRecognition==3.10.0
 pyaudio
-faster-whisper
-numpy
 
 # --- Voice Output ---
-pyttsx3
-edge-tts
+piper-tts
 
-# --- Action ---
+# --- GUI ---
+PyQt6
+
+# --- Action (OS automation) ---
 AppOpener
 PyGetWindow
-PyAutoGUI

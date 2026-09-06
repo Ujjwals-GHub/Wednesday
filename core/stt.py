@@ -27,7 +27,7 @@ class STT:
 
     # --- Wake-word model ---
     WAKEWORD_MODEL_PATH = "models/wednesday.onnx"
-    WAKEWORD_THRESHOLD = 0.3
+    WAKEWORD_THRESHOLD = 0.5
 
     # --- Command transcription model ---
     WHISPER_MODEL_SIZE = "small.en"   # try "base.en" if this feels slow on your CPU
@@ -93,6 +93,11 @@ class STT:
     # ------------------------------------------------------------------
 
     def listen_passive(self):
+        """
+        Streams small audio chunks into openWakeWord until the trained
+        wake-word model's confidence crosses the threshold. Blocks until
+        detected. Returns True once triggered (or False on a stream error).
+        """
         stream = self._open_stream()
         try:
             while True:
@@ -104,18 +109,17 @@ class STT:
 
                 if score >= self.WAKEWORD_THRESHOLD:
                     self.logger.info(f"Wake word detected (score={score:.3f}).")
+                    # openWakeWord keeps a rolling ~2.4s internal buffer. Without
+                    # this reset, the tail of the utterance that just triggered
+                    # us can immediately re-trigger the next passive cycle.
                     self.oww_model.reset()
                     return True
         except Exception as e:
             self.logger.error(f"Wake-word listening error: {e}")
-            print(f"[Error] Wake-word listening error: {e}")
             return False
         finally:
-            try:
-                stream.stop_stream()
-                stream.close()
-            except Exception:
-                pass  # stream may already be dead if the error above came from the stream itself
+            stream.stop_stream()
+            stream.close()
 
     # ------------------------------------------------------------------
     # PHASE 2: Active command capture + transcription

@@ -8,8 +8,9 @@ from actions.todo_list import TodoList
 from core.stt import STT
 
 class AssistantBrain:
-    def __init__(self, use_voice_mode=False):
-        self.use_voice = use_voice_mode
+    def __init__(self, config):
+        self.config = config
+        self.use_voice = self.config.get("use_voice_mode", False)
         
         mode_text = "Voice Mode" if self.use_voice else "Text Mode"
         print(f"\n[System] Booting up Wednesday AI ({mode_text})...")
@@ -20,7 +21,7 @@ class AssistantBrain:
         self.todo_list = TodoList()
         
         if self.use_voice:
-            self.stt = STT()
+            self.stt = STT(config=self.config)
         
         self.action_registry = {
             ("open", "launch", "start"): self.windows_manager.handle_open,
@@ -29,15 +30,11 @@ class AssistantBrain:
             ("maximize", "full screen"): self.windows_manager.handle_maximize,
             ("bring", "focus"): self.windows_manager.handle_bring_to_top,
             ("desktop", "show desktop", "go to desktop"): self.windows_manager.handle_go_to_desktop,
-            
             ("add", "remember to", "new task"): self.todo_list.handle_add,
-            ("read", "whats on my", "what is on my", "tell me my", "whats task"): self.todo_list.handle_read,
+            ("read", "what's on my", "what is on my", "tell me my", "what's task"): self.todo_list.handle_read,
             ("clear", "delete", "remove", "erase"): self.todo_list.handle_clear
         }
         
-        # Precompile trigger regex once, instead of rebuilding it on every
-        # command in the run loop. Order matches self.action_registry so the
-        # existing "earliest match wins" tie-break behavior is unchanged.
         self._compiled_actions = [
             (re.compile(r'\b' + re.escape(trigger) + r'\b'), trigger, handler)
             for triggers, handler in self.action_registry.items()
@@ -48,58 +45,48 @@ class AssistantBrain:
 
     def run(self):
         """
-        Entry point called by main.py. Starts the AI logic loop on a background
-        daemon thread, then hands the main thread to the Qt event loop
-        (Qt widgets must live on the main thread).
+        Starts the primary event loop and initializes background daemon processes.
         """
         worker = threading.Thread(target=self.run_logic, daemon=True)
         worker.start()
-        self.gui.run()  # blocks main thread until gui.close() is triggered
+        self.gui.run()
 
     def run_logic(self):
+        """
+        Background loop handling STT processing, intent resolution, and action dispatch.
+        """
         self.tts = TTS()
         input_type = "speech" if self.use_voice else "text input"
         self.tts.speak(f"Wednesday is online and waiting for {input_type}.")
         
-        # Only used by TEXT MODE now -- voice mode's wake-word detection is
-        # handled entirely by the trained openWakeWord model in stt.py.
-        wake_words = ["hello wednesday", "hi wednesday", "wednesday"]
+        wake_words = sorted(self.config.get("wake_words", ["wednesday"]), key=len, reverse=True)
         
         while True:
             clean_command = ""
             
             if self.use_voice:
-                # PHASE 1: Silently hunt for the wake word.
-                # listen_passive() blocks until the trained wednesday.onnx
-                # model fires, returning True -- it no longer returns text,
-                # since openWakeWord scores raw audio rather than transcribing it.
-                wake_detected = self.stt.listen_passive()
-                
-                if not wake_detected:
+                if not self.stt.listen_passive():
                     continue
                     
-                # PHASE 2: Wake Word Detected! Show GUI and listen for the command.
                 self.gui.show()
                 self.gui.set_label("Listening")
-                # self.tts.speak("Yes?") # Optional: Uncomment if you want her to say "Yes?" before listening
-                clean_command = self.stt.listen_active()
                 
+                clean_command = self.stt.listen_active()
                 if not clean_command:
                     self.gui.hide()
                     continue
             else:
-                # TEXT MODE LOGIC (Unaffected)
                 command = input("\n[Terminal] Type your command: ").strip().lower()
-                if not command: continue
+                if not command: 
+                    continue
                 
                 command = command.replace(",", " ").replace(".", " ")
                 
-                if any(wake in command for wake in wake_words):
+                matched_wake = next((w for w in wake_words if command.startswith(w)), None)
+                
+                if matched_wake:
                     self.gui.show()
-                    clean_command = command
-                    
-                    for wake in wake_words:
-                        clean_command = clean_command.replace(wake, "").strip()
+                    clean_command = command[len(matched_wake):].strip()
                     
                     if not clean_command:
                         clean_command = input("\n[Terminal] What would you like me to do? ").strip().lower()
@@ -107,14 +94,12 @@ class AssistantBrain:
                             self.gui.hide()
                             continue
                 else:
-                    print("[System] Ignored: Wake word not detected. Try starting with 'Wednesday'.")
+                    print("[System] Ignored: Wake word not detected.")
                     continue
 
-            # --- ROUTE THE COMMAND ---
             self.logger.info(f"Command parsed: '{clean_command}'")
 
             best_handler = None
-            best_trigger = None
             best_pattern = None
             earliest_pos = float('inf')
             
@@ -122,7 +107,6 @@ class AssistantBrain:
                 match = pattern.search(clean_command)
                 if match and match.start() < earliest_pos:
                     earliest_pos = match.start()
-                    best_trigger = trigger_word
                     best_handler = handler_function
                     best_pattern = pattern
 
@@ -133,14 +117,14 @@ class AssistantBrain:
                 
                 self.tts.speak(voice_reply)
                 
-                if "error" in debug_log.lower() or "failed" in debug_log.lower() or "no matching" in debug_log.lower() or "couldn't" in debug_log.lower():
+                if any(err in debug_log.lower() for err in ["error", "failed", "no matching", "couldn't"]):
                     self.logger.error(debug_log)
                 else:
                     self.logger.info(debug_log)
                     
                 action_handled = True
                     
-            if not action_handled and ("stop" in clean_command or "shut down" in clean_command):
+            if not action_handled and any(term in clean_command for term in ["stop", "shut down", "shutdown"]):
                 self.tts.speak("Going offline. Goodbye.")
                 self.logger.info("System shutdown triggered by user.")
                 self.gui.close()

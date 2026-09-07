@@ -1,13 +1,3 @@
-"""
-core/stt.py
-
-Two-layer local speech pipeline, no cloud calls:
-  1. Wake-word detection -> openWakeWord running your custom-trained
-     models/wednesday.onnx model, fed a continuous 16kHz mono PCM stream.
-  2. Command transcription -> faster-whisper (small.en, int8) on CPU,
-     triggered only after the wake word fires.
-"""
-
 import os
 import numpy as np
 import pyaudio
@@ -16,60 +6,55 @@ from openwakeword.model import Model as OWWModel
 from faster_whisper import WhisperModel
 
 from core.logger import get_logger
+from core.config import load_config
 
 
 class STT:
-    # --- Audio format openWakeWord/Whisper expect ---
     SAMPLE_RATE = 16000
-    FRAME_SIZE = 1280          # 80ms @ 16kHz -- openWakeWord's standard chunk size
+    FRAME_SIZE = 1280
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
 
-    # --- Wake-word model ---
-    WAKEWORD_MODEL_PATH = "models/wednesday.onnx"
-    WAKEWORD_THRESHOLD = 0.5
-
-    # --- Command transcription model ---
-    WHISPER_MODEL_SIZE = "small.en"   # try "base.en" if this feels slow on your CPU
-    WHISPER_COMPUTE_TYPE = "int8"
-
-    # --- Active-listening (command capture) tuning ---
+    # Active-listening (command capture) tuning -- capture-behavior internals
+    # rather than "which model" choices, so these stay as code constants for
+    # now. Move them into config.json too if you'd rather tune them there.
     MAX_COMMAND_SECONDS = 6
-    SILENCE_TIMEOUT_SECONDS = 1.2     # stop early once this much silence follows speech
-    SILENCE_RMS_THRESHOLD = 300       # tune to your mic/room -- see notes below
+    SILENCE_TIMEOUT_SECONDS = 1.2
+    SILENCE_RMS_THRESHOLD = 300
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.logger = get_logger()
+        cfg = config or load_config()
+
+        self.wakeword_model_path = cfg["wake_word_model_path"]
+        self.wakeword_threshold = cfg["wake_word_threshold"]
 
         print("[System] Loading wake-word model (openWakeWord)...")
-        if not os.path.exists(self.WAKEWORD_MODEL_PATH):
+        if not os.path.exists(self.wakeword_model_path):
             raise FileNotFoundError(
-                f"Wake-word model not found at '{self.WAKEWORD_MODEL_PATH}'. "
-                "Place your trained wednesday.onnx there first."
+                f"Wake-word model not found at '{self.wakeword_model_path}'. "
+                "Place your trained wednesday.onnx there, or fix "
+                "'wake_word_model_path' in config.json."
             )
         self.oww_model = OWWModel(
-            wakeword_models=[self.WAKEWORD_MODEL_PATH],
+            wakeword_models=[self.wakeword_model_path],
             inference_framework="onnx",
         )
         # openWakeWord keys its prediction dict by the model filename (no extension)
-        self.wakeword_key = os.path.splitext(os.path.basename(self.WAKEWORD_MODEL_PATH))[0]
-        print(f"[System] Wake-word model loaded: '{self.wakeword_key}'")
+        self.wakeword_key = os.path.splitext(os.path.basename(self.wakeword_model_path))[0]
+        print(f"[System] Wake-word model loaded: '{self.wakeword_key}' (threshold={self.wakeword_threshold})")
 
         print("[System] Loading command transcription model (faster-whisper)...")
         print("[System] (first run downloads the model once -- needs internet just this one time)")
         self.whisper_model = WhisperModel(
-            self.WHISPER_MODEL_SIZE,
+            cfg["whisper_model_size"],
             device="cpu",
-            compute_type=self.WHISPER_COMPUTE_TYPE,
+            compute_type=cfg["whisper_compute_type"],
         )
         print("[System] faster-whisper loaded successfully.")
 
         self._audio = pyaudio.PyAudio()
         self.logger.info("STT initialized: openWakeWord + faster-whisper (CPU).")
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _open_stream(self):
         return self._audio.open(
@@ -82,22 +67,12 @@ class STT:
 
     @staticmethod
     def _rms(frame_bytes):
-        """Simple energy measure used for silence detection during active listening."""
         audio_int16 = np.frombuffer(frame_bytes, dtype=np.int16)
         if audio_int16.size == 0:
             return 0.0
         return float(np.sqrt(np.mean(audio_int16.astype(np.float64) ** 2)))
 
-    # ------------------------------------------------------------------
-    # PHASE 1: Passive wake-word hunting
-    # ------------------------------------------------------------------
-
     def listen_passive(self):
-        """
-        Streams small audio chunks into openWakeWord until the trained
-        wake-word model's confidence crosses the threshold. Blocks until
-        detected. Returns True once triggered (or False on a stream error).
-        """
         stream = self._open_stream()
         try:
             while True:
@@ -107,31 +82,22 @@ class STT:
                 prediction = self.oww_model.predict(audio_chunk)
                 score = prediction.get(self.wakeword_key, 0.0)
 
-                if score >= self.WAKEWORD_THRESHOLD:
+                if score >= self.wakeword_threshold:
                     self.logger.info(f"Wake word detected (score={score:.3f}).")
-                    # openWakeWord keeps a rolling ~2.4s internal buffer. Without
-                    # this reset, the tail of the utterance that just triggered
-                    # us can immediately re-trigger the next passive cycle.
                     self.oww_model.reset()
                     return True
         except Exception as e:
             self.logger.error(f"Wake-word listening error: {e}")
+            print(f"[Error] Wake-word listening error: {e}")
             return False
         finally:
-            stream.stop_stream()
-            stream.close()
-
-    # ------------------------------------------------------------------
-    # PHASE 2: Active command capture + transcription
-    # ------------------------------------------------------------------
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception:
+                pass
 
     def listen_active(self):
-        """
-        Records up to MAX_COMMAND_SECONDS, cutting off early once
-        SILENCE_TIMEOUT_SECONDS of silence follows detected speech, then
-        transcribes with faster-whisper. Returns the lowercase transcript,
-        or "" if nothing usable was captured.
-        """
         stream = self._open_stream()
         frames = []
         speech_started = False
@@ -153,8 +119,11 @@ class STT:
                     if silence_frames >= silence_frame_limit:
                         break
         finally:
-            stream.stop_stream()
-            stream.close()
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception:
+                pass
 
         if not speech_started:
             return ""
@@ -175,9 +144,6 @@ class STT:
         self._audio.terminate()
 
 
-# ==========================================
-# TESTING BLOCK -- run directly:  python core/stt.py
-# ==========================================
 if __name__ == "__main__":
     print("[Test] Booting STT stack (openWakeWord + faster-whisper)...")
     stt = STT()

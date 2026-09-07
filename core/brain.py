@@ -61,21 +61,26 @@ class AssistantBrain:
         input_type = "speech" if self.use_voice else "text input"
         self.tts.speak(f"Wednesday is online and waiting for {input_type}.")
         
+        # Only used by TEXT MODE now -- voice mode's wake-word detection is
+        # handled entirely by the trained openWakeWord model in stt.py.
         wake_words = ["hello wednesday", "hi wednesday", "wednesday"]
         
         while True:
             clean_command = ""
             
             if self.use_voice:
-                # PHASE 1: Silently hunt for the wake word
-                wake_check = self.stt.listen_passive()
+                # PHASE 1: Silently hunt for the wake word.
+                # listen_passive() blocks until the trained wednesday.onnx
+                # model fires, returning True -- it no longer returns text,
+                # since openWakeWord scores raw audio rather than transcribing it.
+                wake_detected = self.stt.listen_passive()
                 
-                # If no wake word is found, restart the loop and keep hunting silently
-                if not any(wake in wake_check for wake in wake_words):
+                if not wake_detected:
                     continue
                     
-                # PHASE 2: Wake Word Detected! Show GUI and listen for 5 seconds
+                # PHASE 2: Wake Word Detected! Show GUI and listen for the command.
                 self.gui.show()
+                self.gui.set_label("Listening")
                 # self.tts.speak("Yes?") # Optional: Uncomment if you want her to say "Yes?" before listening
                 clean_command = self.stt.listen_active()
                 
@@ -128,7 +133,7 @@ class AssistantBrain:
                 
                 self.tts.speak(voice_reply)
                 
-                if "error" in debug_log.lower() or "failed" in debug_log.lower():
+                if "error" in debug_log.lower() or "failed" in debug_log.lower() or "no matching" in debug_log.lower() or "couldn't" in debug_log.lower():
                     self.logger.error(debug_log)
                 else:
                     self.logger.info(debug_log)

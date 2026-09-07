@@ -5,7 +5,10 @@ import os
 # or fails to parse.
 DEFAULT_CONFIG = {
     "use_voice_mode": False,
-    "stt_model_path": "models/vosk-model-small-en-us-0.15",
+    "wake_word_model_path": "models/wednesday.onnx",
+    "wake_word_threshold": 0.5,
+    "whisper_model_size": "small.en",
+    "whisper_compute_type": "int8",
     "wake_words": ["hello wednesday", "hi wednesday", "wednesday"]
 }
 

@@ -80,6 +80,7 @@ class AssistantBrain:
                     
                 # PHASE 2: Wake Word Detected! Show GUI and listen for the command.
                 self.gui.show()
+                self.gui.set_label("Listening")
                 # self.tts.speak("Yes?") # Optional: Uncomment if you want her to say "Yes?" before listening
                 clean_command = self.stt.listen_active()
                 

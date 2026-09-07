@@ -133,7 +133,7 @@ class AssistantBrain:
                 
                 self.tts.speak(voice_reply)
                 
-                if "error" in debug_log.lower() or "failed" in debug_log.lower():
+                if "error" in debug_log.lower() or "failed" in debug_log.lower() or "no matching" in debug_log.lower() or "couldn't" in debug_log.lower():
                     self.logger.error(debug_log)
                 else:
                     self.logger.info(debug_log)

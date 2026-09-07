@@ -5,6 +5,8 @@ DEFAULT_CONFIG = {
     "use_voice_mode": False,
     "wake_word_model_path": "models/wednesday.onnx",
     "wake_word_threshold": 0.5,
+    "melspec_model_path": "models/melspectrogram.onnx",
+    "embedding_model_path": "models/embedding_model.onnx",
     "whisper_model_size": "small.en",
     "whisper_compute_type": "int8",
     "wake_words": ["hello wednesday", "hi wednesday", "wednesday"]

@@ -1,17 +1,17 @@
 # Wednesday
 
-A personal, offline-first desktop AI assistant for Windows — built with Python and PyQt6.
+A personal, offline desktop AI assistant for Windows — built with Python and PyQt6.
 
 Wednesday listens for its wake word, shows an animated translucent HUD, replies out loud with offline neural text-to-speech, and can control application windows and manage a to-do list.
 
-> **Speech recognition is fully local and production-ready.** Wake-word detection (a custom-trained openWakeWord model) and command transcription (faster-whisper) both run entirely on-device — no cloud speech API involved.
+> **Speech recognition is fully local.** Wake-word detection (a custom-trained openWakeWord model) and command transcription (faster-whisper) both run entirely on-device — no cloud speech API involved.
 
 ---
 
 ## Features
 
 - 🎙️ **Local wake-word activation** — a custom-trained openWakeWord model listens continuously and triggers on "Hey Wednesday" / "Hi Wednesday" / "Hello Wednesday", fully offline
-- 🗣️ **Local command transcription** — [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`small.en`, int8) transcribes your command on CPU the instant the wake word fires
+- 🗣️ **Local command transcription** — [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (`base.en`, int8) transcribes your command on CPU the instant the wake word fires. For better performance `base.en` can be swithed with `small.en` by updating `whisper_model_size` in `config.json`
 - 🔌 **Self-healing microphone handling** — automatically detects audio-device disconnects/reassignments and reinitializes the input stream without crashing or requiring a restart
 - 🪟 **Animated HUD** — a borderless, translucent, always-on-top orb rendered entirely with native PyQt6 drawing
 - 🔊 **Offline neural text-to-speech** — powered by [Piper](https://github.com/OHF-Voice/piper1-gpl)
@@ -75,7 +75,7 @@ Wednesday/
 - Python 3.12+
 - A Piper voice model (for text-to-speech)
 - A trained openWakeWord wake-word model — `models/wednesday.onnx` ships pre-trained; see [Training your own wake word](#training-your-own-wake-word) to make your own
-- ~500MB free disk space for faster-whisper's `small.en` model, which downloads automatically the first time voice mode runs (cached locally after that)
+- ~500MB free disk space for faster-whisper's `small.en/base.en` model, which downloads automatically the first time voice mode runs (cached locally after that)
 
 ---
 
@@ -95,7 +95,7 @@ Wednesday/
        "use_voice_mode": false,
        "wake_word_model_path": "models/wednesday.onnx",
        "wake_word_threshold": 0.5,
-       "whisper_model_size": "small.en",
+       "whisper_model_size": "base.en",
        "whisper_compute_type": "int8",
        "wake_words": ["hello wednesday", "hi wednesday", "hey wednesday"]
    }
@@ -118,7 +118,7 @@ Wednesday/
 | `wake_word_threshold` | float | Confidence score (0–1) the wake-word model must clear before it counts as a detection. Default `0.5`. |
 | `melspec_model_path` | str | Path to openWakeWord's shared mel-spectrogram feature-extraction model. Optional — has a sensible default. |
 | `embedding_model_path` | str | Path to openWakeWord's shared audio embedding model. Optional — has a sensible default. |
-| `whisper_model_size` | str | faster-whisper model size used to transcribe commands after the wake word fires. Default `small.en`. |
+| `whisper_model_size` | str | faster-whisper model size used to transcribe commands after the wake word fires. Default `base.en`. |
 | `whisper_compute_type` | str | faster-whisper compute precision. Default `int8` (CPU-friendly). |
 | `wake_words` | list[str] | Phrases that activate the assistant in text mode. Prefer multi-word phrases (`"hey wednesday"`) over a bare name to cut down on false triggers from everyday speech. |
 
@@ -176,16 +176,15 @@ To train your own:
 
 - Windows-only — uses `winsound` for audio playback, PowerShell for the show-desktop trick, and `AppOpener`/`PyGetWindow` for window control.
 - Voice-mode command capture is capped at 6 seconds per utterance (cut short after ~1.2s of silence) — built for quick commands, not long-form dictation.
-- On its very first run, voice mode downloads the faster-whisper `small.en` model (a few hundred MB) if it isn't already cached locally. After that, voice mode runs fully offline like everything else.
+- On its very first run, voice mode downloads the faster-whisper `base.en` model (a few hundred MB) if it isn't already cached locally. After that, voice mode runs fully offline like everything else.
 
 ---
 
 ## Roadmap
 
-- ~~**STT overhaul** — replace cloud speech recognition with a fully local pipeline~~ ✅ Done — openWakeWord (wake word) + faster-whisper (transcription), both offline on CPU.
-- ~~**Custom wake-word model** — train a model on your own wake-word phrase~~ ✅ Done — see `wednesday-wakeup-v1.ipynb` and [Training your own wake word](#training-your-own-wake-word).
+- 🧠 Wednesday is learning new tricks — more actions are being cooked.
 
-Nothing else is currently planned — open an issue if you have ideas.
+- open an issue if you have ideas.
 
 ---
 

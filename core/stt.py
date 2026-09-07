@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pyaudio
+import re
 
 from openwakeword.model import Model as OWWModel
 from faster_whisper import WhisperModel
@@ -134,6 +135,8 @@ class STT:
         try:
             segments, _ = self.whisper_model.transcribe(audio_np, language="en", beam_size=1)
             text = " ".join(segment.text for segment in segments).strip().lower()
+            text = re.sub(r'[.,!?;:]+', '', text)
+            text = re.sub(r'\s+', ' ', text).strip()
             self.logger.info(f"Transcribed command: '{text}'")
             return text
         except Exception as e:

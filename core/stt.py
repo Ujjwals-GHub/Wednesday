@@ -38,6 +38,8 @@ class STT:
         self.oww_model = OWWModel(
             wakeword_models=[self.wakeword_model_path],
             inference_framework="onnx",
+            melspec_model_path=cfg["melspec_model_path"],
+            embedding_model_path=cfg["embedding_model_path"],
         )
         self.wakeword_key = os.path.splitext(os.path.basename(self.wakeword_model_path))[0]
         print(f"[System] Wake-word model loaded: '{self.wakeword_key}' (threshold={self.wakeword_threshold})")

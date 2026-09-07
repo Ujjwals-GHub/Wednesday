@@ -53,21 +53,6 @@ class STT:
         self._audio = pyaudio.PyAudio()
         self.logger.info("STT initialized: openWakeWord + faster-whisper (CPU).")
         
-    def _ensure_oww_shared_models(self):
-        """Automatically downloads openWakeWord shared resource models if missing."""
-        try:
-            models_dir = Path(openwakeword.__file__).parent / "resources" / "models"
-            models_dir.mkdir(parents=True, exist_ok=True)
-            base_url = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
-            
-            for fname in ["melspectrogram.onnx", "embedding_model.onnx"]:
-                dest = models_dir / fname
-                if not dest.exists() or dest.stat().st_size < 1000:
-                    print(f"[System] Downloading required shared model: {fname}...")
-                    urllib.request.urlretrieve(f"{base_url}/{fname}", dest)
-        except Exception as e:
-            print(f"[Warning] Could not verify/download openWakeWord shared models: {e}")
-            
     def _open_stream(self):
         """Opens and returns a PyAudio input stream."""
         return self._audio.open(

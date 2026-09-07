@@ -5,11 +5,12 @@ from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath, QRadialGrad
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QPropertyAnimation, QEasingCurve
 
 class GUIBridge(QObject):
-    """Thread-safe signal dispatcher between Python background threads and Qt."""
+    """Cross-thread signal bridge for GUI state management."""
     show_signal = pyqtSignal()
     hide_signal = pyqtSignal()
     close_signal = pyqtSignal()
     label_signal = pyqtSignal(str)
+
 
 class WaveOrbWidget(QWidget):
     def __init__(self):
@@ -38,6 +39,7 @@ class WaveOrbWidget(QWidget):
             ("#BA55D3", 88, 190),
             ("#E0B0FF", 100, 215),
         ]
+        
         self.pens = []
         self.layer_radii = []
         for hex_color, radius, alpha in layer_specs:
@@ -172,8 +174,7 @@ class WaveOrbWidget(QWidget):
         anim = self._fade(0.0, 180)
 
         def _on_faded():
-            # Only hide if a newer fade (e.g. show() called again right
-            # after this hide()) hasn't already replaced this animation.
+            """Evaluates if a newer animation has preempted the current fade."""
             if self._fade_anim is anim:
                 self.timer.stop()
                 self.hide()
@@ -221,8 +222,6 @@ class AssistantGUI:
         self.bridge.close_signal.emit()
 
     def set_label(self, text):
-        """Optional: gui.set_label('Listening') to update the HUD's status word.
-        Routed through the bridge so it's safe to call from a background thread."""
         self.bridge.label_signal.emit(text)
 
     def run(self):

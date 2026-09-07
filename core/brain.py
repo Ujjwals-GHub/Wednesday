@@ -1,4 +1,5 @@
 import threading
+import time
 import re
 from core.tts import TTS
 from core.gui import AssistantGUI
@@ -31,7 +32,7 @@ class AssistantBrain:
             ("bring", "focus"): self.windows_manager.handle_bring_to_top,
             ("desktop", "show desktop", "go to desktop"): self.windows_manager.handle_go_to_desktop,
             ("add", "remember to", "new task"): self.todo_list.handle_add,
-            ("read", "what's on my", "what is on my", "tell me my", "what's task"): self.todo_list.handle_read,
+            ("read", "whats on my", "what is on my", "tell me my", "whats task", "ls"): self.todo_list.handle_read,
             ("clear", "delete", "remove", "erase"): self.todo_list.handle_clear
         }
         
@@ -65,7 +66,18 @@ class AssistantBrain:
             clean_command = ""
             
             if self.use_voice:
-                if not self.stt.listen_passive():
+                wake_detected = self.stt.listen_passive()
+                
+                if wake_detected == "HARDWARE_ERROR":
+                    self.gui.show()
+                    self.gui.set_label("HARDWARE SYNC")
+                    self.tts.speak("Microphone connection changed. Refreshing audio hardware.")
+                    self.stt.reboot_audio()
+                    self.gui.hide()
+                    continue
+                
+                if not wake_detected:
+                    time.sleep(2)
                     continue
                     
                 self.gui.show()

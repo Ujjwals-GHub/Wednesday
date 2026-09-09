@@ -32,7 +32,7 @@ class AssistantBrain:
             ("bring", "focus"): self.windows_manager.handle_bring_to_top,
             ("desktop", "show desktop", "go to desktop"): self.windows_manager.handle_go_to_desktop,
             ("add", "remember to", "new task"): self.todo_list.handle_add,
-            ("read", "whats on my", "what is on my", "tell me my", "whats task", "ls"): self.todo_list.handle_read,
+            ("read", "what's on my", "what is on my", "tell me my", "what's task"): self.todo_list.handle_read,
             ("clear", "delete", "remove", "erase"): self.todo_list.handle_clear
         }
         
@@ -81,7 +81,7 @@ class AssistantBrain:
                     continue
                     
                 self.gui.show()
-                self.gui.set_label("Listening")
+               
                 
                 clean_command = self.stt.listen_active()
                 if not clean_command:

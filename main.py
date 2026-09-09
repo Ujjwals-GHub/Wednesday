@@ -8,5 +8,6 @@ from core.config import load_config
 
 if __name__ == "__main__":
     config = load_config()
-    assistant = AssistantBrain(use_voice_mode=config["use_voice_mode"])
+    
+    assistant = AssistantBrain(config=config)
     assistant.run()

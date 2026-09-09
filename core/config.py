@@ -1,28 +1,27 @@
 import json
 import os
 
-# Fallback values used if config.json is missing a key, missing entirely,
-# or fails to parse.
 DEFAULT_CONFIG = {
     "use_voice_mode": False,
     "wake_word_model_path": "models/wednesday.onnx",
     "wake_word_threshold": 0.5,
+    "melspec_model_path": "models/melspectrogram.onnx",
+    "embedding_model_path": "models/embedding_model.onnx",
     "whisper_model_size": "small.en",
     "whisper_compute_type": "int8",
     "wake_words": ["hello wednesday", "hi wednesday", "wednesday"]
 }
 
-
 def load_config(path="config.json"):
     """
-    Loads config.json and merges it over DEFAULT_CONFIG, so a missing file
-    or a partially-filled-in file still produces a complete, usable config.
+    Loads config.json and merges it over DEFAULT_CONFIG.
+    Ensures missing files or keys fallback gracefully to stable defaults.
     """
     config = DEFAULT_CONFIG.copy()
 
     if os.path.exists(path):
         try:
-            with open(path, "r") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 user_config = json.load(f)
             config.update(user_config)
         except json.JSONDecodeError as e:
